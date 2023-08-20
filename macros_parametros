@@ -1,0 +1,705 @@
+Declara Parámetro a partir de un resultado:
+
+
+
+LIBNAME MAD ORACLE  PATH=OMTP1N  SCHEMA=DMP  USER=DMP  PASSWORD="{SAS002}BA7B9D06115FA7C45AF3E4814A50A4E4" ;
+
+proc sql OUTOBS=1;
+    select distinct MSR_PRD_ID into :DIA_SALDO_PP trimmed
+    from MAD.MA_SC_SALDO
+        ORDER BY MSR_PRD_ID DESC;
+quit;run;
+
+proc sql OUTOBS=1;
+    select distinct MSR_PRD_ID into :DIA_SALDO_CTA trimmed
+    from MAD.MA_CTA_SALDOS
+        ORDER BY MSR_PRD_ID DESC;
+quit;run;
+
+proc sql OUTOBS=1;
+    select distinct MSR_PRD_ID into :MES_HABERES trimmed
+    from MAD.MA_CTA_HABERES
+        ORDER BY MSR_PRD_ID DESC;
+quit;run;
+
+
+
+
+-------------------------
+
+
+Gerera parámetro MES:
+
+
+
+proc sql;
+	select max(day_id) into :MES_1 trimmed
+	from mad.V_MSR_PRD_DAY_WK_MO_LOOKUP
+	where datepart(day_mo_end_dt) = intnx('MONTH',DATE(),-1,'E')
+	group by day_mo_end_dt;
+	
+	select max(day_id) into :MES_2 trimmed
+	from mad.V_MSR_PRD_DAY_WK_MO_LOOKUP
+	where datepart(day_mo_end_dt) = intnx('MONTH',DATE(),-2,'E')
+	group by day_mo_end_dt;
+
+	select max(day_id) into :MES_3 trimmed
+	from mad.V_MSR_PRD_DAY_WK_MO_LOOKUP
+	where datepart(day_mo_end_dt) = intnx('MONTH',DATE(),-3,'E')
+	group by day_mo_end_dt;
+
+quit;run;
+
+
+
+-------------------------
+
+Genera Corte con Variable a partir de un valor y exporta 
+
+
+%global cant_reg;
+
+data _null_;
+
+    set WORK.Filiales; /*filiales es la tabla que contiene un distinct con las catergorías para el corte*/
+
+    call symput(compress("id_"||put(_n_,20.)),COMPRESS(NRO_SUCURSAL)); /*NRO_SUCURSAL es la variable que contiene un distinct con las catergorías para el corte*/
+
+    call symput("cant_reg",_n_);
+
+run;
+
+
+/*MACRO PARA CREAR LAS TABLAS CORTADAS*/
+
+/*Se usa una macro porque la variable ID_i es tipo Macro Variable y no puede usarse en combinacion con variables de un Data Step SAS*/
+
+
+%macro Crear_Tablas;
+
+%do i=1 %to &cant_reg.;
+
+     data Filial_&&ID_&i.;
+
+          set work.CONTRATOS_CABAL (where=(nro_sucursal=&&ID_&i));
+
+     run;
+
+	proc export data=Filial_&&ID_&i. 
+		DBMS=xls 
+		outfile="/APP/SAS/config_reconfigurado2014mayo16/Lev1/Applications/SASCustomerIntelligence/CampaignManagement/data/MAExport/Filial_&&ID_&i."
+		replace;
+	run;
+
+%end;
+
+%mend Crear_Tablas;
+
+%Crear_Tablas;
+
+
+---------------------------
+
+
+Genera Corte con Variable 
+
+data _null_;
+
+    set WORK.Filiales; /*filiales es la tabla que contiene un distinct con las catergorías para el corte*/
+
+    call symput(compress("id_"||put(_n_,20.)),NRO_SUCURSAL); /*NRO_SUCURSAL es la variable que contiene un distinct con las catergorías para el corte*/
+
+    call symput("cant_reg",_n_);
+
+run;
+
+
+/*MACRO PARA CREAR LAS TABLAS CORTADAS*/
+
+/*Se usa una macro porque la variable ID_i es tipo Macro Variable y no puede usarse en combinacion con variables de un Data Step SAS*/
+
+
+%macro Crear_Tablas;
+
+%do i=1 %to &cant_reg.;
+
+     data Filial_&i.;
+
+          set work.CONTRATOS_CABAL (where=(nro_sucursal=&&ID_&i));
+
+     run;
+
+%end;
+
+%mend Crear_Tablas;
+
+%Crear_Tablas;
+
+
+--------------------------
+
+Asigna Librería
+
+
+LIBNAME MAD ORACLE  PATH=OMTP1N  SCHEMA=DMP  USER=DMP  PASSWORD="{SAS002}BA7B9D06115FA7C45AF3E4814A50A4E4" ;
+
+
+
+--------------------------
+
+Declara el último mes de una tabla y lo utiliza como parámetro
+
+
+proc sql OUTOBS=1;
+	select distinct MSR_PRD_ID into :MES_CLIENTES trimmed
+	from mad.MA_CLIENTES_HIST
+		ORDER BY MSR_PRD_ID DESC;
+quit;run;
+
+
+--------------------------
+
+Divide en columnas segun un caracter
+
+
+data xxx;
+  set xxx;
+  NNN=scan(XXX,2,',');
+  XXX=scan(XXX,1,',');
+run;
+
+
+Data= nombre nueva tabla
+Set = tabla origen
+NNN= Nombre nueva columna
+XXX= nombre columna original
+
+
+--------------------------
+
+
+IMPUTA VALORES NUMERICOS:
+
+
+data NOMBRE_TABLA (drop= NUM );
+set TABLA_ORIGEN;
+  Array NUMERICAS {*} _NUMERIC_;
+  Do NUM = 1 To DIM(NUMERICAS);
+    If NUMERICAS{NUM} eq . Then NUMERICAS{NUM} = 0;
+  End;
+run;
+
+
+--------------------------
+Modeler:
+@BLANK(FIELD)
+
+--------------------------
+
+Busca una cadena dentro de un string y devuelve el número de caracter donde se ubica
+
+FIND(t1.NOMBRE, 'CADENA')
+
+
+--------------------------
+
+Genera variable Autoincremental:
+
+
+Data LIBRERIA.Tabla;
+SET LIBRERIA.Tabla;
+id = _N_;
+RUN;
+
+--------------------------
+Ejecuta cleanwork:
+
+Desde putty:
+
+/APP/SAS/SASHome/SASFoundation/9.3/utilities/bin/cleanwork -hostmatch SMTG0001LX /WORK
+
+
+Se debe ejecutar con el user sas y sassrv
+
+
+
+--------------------------
+Genera un Contador
+
+/*Ordena el dataset*/
+proc sort data=Libreria.tabla; 
+	by Variable; quit;
+/*Define el contador 'posicion'*/
+data ranking;
+set Libreria.tabla;
+by Variable;
+retain posicion ;
+if first.Variable then posicion=1;
+else posicion=posicion+1;
+run;
+
+
+--------------------------
+
+
+Genera Carpeta:
+
+
+En putty:
+
+cd /USUARIOS/MODELOS
+mkdir RESULTADOS_SCORE
+
+
+En un programa de Guide:
+
+LIBNAME RESUL "/USUARIOS/MODELOS/RESULTADOS_SCORE";
+
+
+--------------------------
+
+Completa ceros delante
+
+
+Put(t1.filial,Z3.)
+
+
+--------------------------
+
+Compbl (cadena): Elimina blancos de la cadena.
+Compress (cadena, ‘car’): elimina de la cadena los caracteres específicados en car.
+Upcase (cadena): convierte en mayúsculas la cadena.
+Lowcase (cadena): convierte en minúsculas la cadena.
+Tranwrd (cadena, ‘lo que quiero substituir’, ‘por lo que quiero substituir’): sustituye en la cadena todas las ocurrencias de origen por el destino.
+
+
+--------------------------
+
+
+Diferencia Meses
+
+INTCK('MONTH', t1.Fec_Alta, t1.Fec_Baja)
+
+
+--------------------------
+
+
+Extrae Cadena:
+
+SUBSTR (t1.NRO_CUENTA,2,13)
+
+Extrae de una variable texto 13 caracteres, a partir de la segunda posición.
+
+
+
+--------------------------
+
+
+Valores Extremos de un Data Set
+
+
+PROC UNIVARIATE DATA=Libreria.Tabla;
+Var Nombre_Variable;
+RUN;
+
+
+--------------------------
+
+Declara variable cadena de 20 posiciones y elimina caracteres vacios del contenido:
+
+DATA libreria.tabla;
+SET libreria.tabla;
+FORMAT PLASTIQUITO $20.;
+PLASTIQUITO=COMPRESS(NROPLASTICO, " ");
+RUN;
+
+
+--------------------------
+
+
+Declara Variable numérica a partir de una cadena e indica la cantidad de posiciones:
+
+input(t1.NRODOC,20.)
+
+
+--------------------------
+
+proc export data=Libreria.Data
+   outfile='Nombre_de_salida_Archivo'
+   dbms=csv;
+delimiter = ",";
+run;
+
+
+--------------------------
+
+data _null_;
+    length text $15;
+    format text $char15.;
+    text = '  ab   cde  f   ';
+    trim = '*'||trim(text)||'*';
+    compress = '*'||compress(text)||'*';
+    strip = '*'||strip(text)||'*';
+    put trim= ;
+    put compress= ;
+    put strip=;
+run;
+
+
+--------------------------
+
+
+Monitoreo de actualización de Metadatos en CI mediante putty:
+
+grep "is reset" /APP/SAS/config/Lev1/Web/Logs/SASCustIntelCore6.1.log
+
+Esto te tiene que devolver el siguiente resultado:
+Information map SBIP://METASERVER/Products/SAS Customer Intelligence/Credicoop IMAP/credicoop imap(BriefInformationMap) is reset.
+Tene en cuenta que la generación de metadatos está planificada para que se ejecute todas las noches. Con lo cual,
+siempre vas a tener al menos una línea que avisa de la finalización del proceso. 
+
+
+---------------------------
+
+
+Ejemplo de data step para actualizar una variable incluyendo un condicional:
+
+DATA
+MODELOS.ABT_JAN14_ATTR(COMPRESS=YES);
+SET MODELOS.ABT_JAN14_ATTR;
+IF
+EMPLEADO_BCCL EQ 0 THEN DO;
+EMPLEADO_BCCL = 1; END;
+ELSE
+IF EMPLEADO_BCCL EQ . THEN DO;
+EMPLEADO_BCCL = 0; END;
+RUN;
+
+--------------------------
+
+
+Calcula Antiguedad en Años entre una variable fecha hora y el día de hoy:
+
+YRDIF(DATEPART((Variable_Fecha_Hora))), TODAY(), 'actual')
+
+--------------------------
+
+
+Proc Append:
+
+proc append base=Libreria.Tabla1 data=Libreria.Tabla2;
+run; 
+
+--------------------------
+
+Elimina tablas de la librería WORK
+
+proc datasets lib=work;
+delete TC_CAP_UM;
+delete TC_UM_ACTIVAS;
+delete TC_Personas_Cap_Totales_UM;
+delete Cupones_Capitulo_TC_UM;
+run;
+
+--------------------------
+
+
+/* COMPARACION entre tablas - Compara tablas iguales y encuentra diferencias */
+proc compare base=MODELOS.ABT_FINAL_2014_02 
+             compare=MODELOS.ABT_FINAL_2014_02_BU LISTBASE ;
+run;
+
+
+--------------------------
+
+Ordena un Data set
+
+proc sort data= libreria.Tabla;
+by campo1 campo2;
+run;
+
+
+--------------------------
+
+Ejemplo Merge
+
+data Modelos.abt_2;
+merge Modelos.Abt_1 (In=Abt_1) Modelos.abt_prestamos (IN=PRE);
+by IP_ID MSR_PRD_ID;
+IF Abt_1=1 THEN Output;
+run;
+
+
+-------------------------
+
+Generacion de Deciles
+
+PROC RANK DATA=WORK.Consume_Credito_Promo_Coto_06 OUT=Rankings_TC_COTO GROUPS=10; 
+VAR TC_Super_Promo_Coto_2014_06; ------> Variable a Rankear del Dataset de entrada
+RANKS CONSUME_PROMO_COTO_TC_10TIL; -----> Variable Nueva
+Run;
+
+PROC PRINT DATA=Rankings_TC_COTO;
+RUN;
+
+-------------------------
+
+Formatea Fechas
+
+DATA &DATASET(COMPRESS=YES);
+SET  &DATASET;
+
+ULTIMO_CIERRE = DATEPART(ULTIMO_CIERRE);
+FORMAT ULTIMO_CIERRE DATE9.;
+
+RUN;
+
+DATA WORK.TRANSACCIONES_CABAL_TC_TD(COMPRESS=YES);
+SET  WORK.TRANSACCIONES_CABAL_TC_TD;
+
+FECHA_COMPRA = DATEPART(FECHA_COMPRA);
+FORMAT FECHA_COMPRA DATE9.;
+
+RUN;
+-------------------------
+
+Devuelve el primer valor no nulo, si no completa con 0
+
+
+PROC SQL;
+CREATE TABLE ROLJAN AS 
+SELECT IP_ID, COALESCE(HABER_UM,INGRE_ROL,0) AS INGRESOS
+FROM &DATASET;
+QUIT;
+
+
+-------------------------
+
+Data Step para exportar un txt con ancho fijo
+lrecl=121 (Ancho total del archivo)
+
+
+/*Export fixed length data*/
+data _null_;
+  set WORK.Genera_Base_Segmentacion_;
+  file '/APP/SAS/config_reconfigurado2014mayo16/Lev1/SASApp/Segmentacion_Seg9_201604.txt' RECFM=V lrecl=121;
+PUT
+  @1        ID_PERSONA
+  @11       Nombre
+  @61       Apellido
+  @91       Sucursal
+  @94       Clave_BUP_CONC
+  @109      Segmento
+  @111      Categoria_Comercial
+  @113      Usuario_ACF
+;
+run;
+
+
+--------------------------
+
+Exporta y apila archivos con formato ancho fijo
+
+
+data _null_;
+Set WORK.HEADER_;
+file '/APP/SAS/config_reconfigurado2014mayo16/Lev1/SASApp/LOACC_ASAL_201712_.txt' RECFM=V lrecl=149 PAD; /*el PAD respesta los 149 blancos del HEADER*/
+PUT 
+@1 HEADER
+;
+
+run;
+
+data _null_;
+  set WORK.Export_0000;
+  file '/APP/SAS/config_reconfigurado2014mayo16/Lev1/SASApp/LOACC_ASAL_201712_.txt' RECFM=V lrecl=150 mod; /*el MOD permite apilar los registros*/
+
+PUT
+  @1        TIPO_REG
+  @2        NRO_CTA_FORM
+  @21       CAT
+  @43       Tipo_de_Tasa
+  @45       TASA_FIJA
+  @50       TASA_REF
+  @53       SPREAD
+  @58       FEC_INI_ACUERDO
+  @66       FEC_VTO_ACUERDO
+  @74       ID_PER
+  @84       RAC_PERSONA_ID
+  @94       COD_ACU_RAC
+  @111      RAC_TIPO_ACU
+  @126      EXPIRA_ACU_RAC
+  @134      COD_LINEA_RAC
+;
+
+run;
+
+
+
+--------------------------
+
+Elimina Formatos y etiquetas de un Dataset
+
+proc datasets lib=Modelos memtype=data;
+   modify Nombre de Tabla; 
+     attrib _all_ label=' '; 
+     attrib _all_ format=;
+run;
+
+--------------------------
+
+FUNCION LAG - Carga el dato del registro de arriba
+
+DATA Libreria.Tabla;
+ SET Libreria.Tabla;
+ HORA_FIN_ANTERIOR = LAG(HORA_FIN);
+ FORMAT HORA_FIN_ANTERIOR AFRDFDT16.;
+RUN;
+
+
+--------------------------
+Retiene y suma una variable incluyendo un condicional
+
+
+data WORK.DIAS_DEUDOR (COMPRESS=binary);
+set WORK.Clave_Contador;
+retain DIA_DEUDOR_;
+IF DIA_DEUDOR EQ 1 THEN DO;
+DIA_DEUDOR_ = SUM(DIA_DEUDOR, (DIA_DEUDOR_)); END;
+ELSE
+IF DIA_DEUDOR NE 1 THEN DO;
+DIA_DEUDOR_ = 0; END;
+RUN;
+
+
+--------------------------
+
+Var %
+(MES_BASE - MES II) / MES II
+
+
+--------------------------
+
+Recorta la cadena hasta el espacio
+
+
+SUBSTR (t1.NOMBRE,1,(INDEX (t1.NOMBRE,' ')))
+
+
+--------------------------
+
+
+Comandos Putty:
+
+ps -ef ---> detalla los procesos pendientes
+
+ls -la /DATOS/PRO742/MT/MTP/LOG/
+
+cd /DATOS/PRO742/MT/MTP/LOG ---> (Accede a la carpeta y se ingresa el proceso a verificar) ---> Ejemplo ---> tail -f CRMTLD00.JR.out  (utilizando CTRL autocompleta)
+
+
+
+sed por linea de comandos:
+
+cd /APP/SAS/Logs/
+
+cat ObjectSpawner_2018-04-06_SMTG0001LX_28276.log |sed -e '/./{H;$!d;}' -e 'x;/process/!d;/usuario/!d'
+
+
+ObjectSpawner_2018-02-27_SMTG0001LX_15642
+
+ObjectSpawner_2018-02-07_SMTG0001LX_9579
+
+ObjectSpawner_2018-03-19_SMTG0001LX_5479
+ObjectSpawner_2018-04-06_SMTG0001LX_28276
+
+
+
+SELECCIONA TODOS LOS CAMPOS DE UNA TABLA MENOS LOS DEFINIDOS EN EL DROP
+
+DATA WORK.TEL_HORIZ (DROP=Fuente DROP=TEL_1);
+SET WORK.TEL_HORIZ;
+RUN;
+
+
+CUANDO UNA TABLA TIENE EL CUIT TEXTO Y LA OTRA NUMERICO EL PUT DENTRO DEL JOIN PERMITE EL CRUZAMIENTO SIN GENERAR UNA
+TABLA INTERMEDIA
+
+PROC SQL;
+CREATE TABLE WORK.UNIVERSO AS
+SELECT DISTINCT t1.*,
+t2.VI_FecNacimiento AS F_NAC_17003,
+t2.VI_ContratoSocial_Fec AS F_CONTR_SOC_17003
+FROM WORK.UNIVERSO t1
+LEFT JOIN MODELOS.QD_NOSIS_NUEVA_ESTRUCTURA_RIESGO t2 ON (t1.CUIT = (PUT(t2.CUIT,Z11.)));
+QUIT;
+
+
+
+EJEMPLOS DE SUBSTR  CATS TRANWRD
+
+SUBSTR ((PUT((t1.FILIAL+1000),Z4.)),2,3) AS 'FILIAL TARJETA'n,
+CATS (PUT (DAY(DATE()),Z2.),PUT (MONTH(DATE()),Z2.),PUT (YEAR(DATE()),Z4.))AS 'FECHA PROCESO'n
+
+TRANWRD(SUBSTR(t1.TEL_CO,2,4),')',' ') AS TEL_CODIGO_AREA LENGTH = 4
+
+
+
+
+/* CALCULO LONGITUD DE EMAIL MENOS 5 POSICIONES */
+PROC SQL;
+CREATE TABLE WORK.COMEXTE AS
+SELECT DISTINCT t1.*,
+LENGTH(t1.EMAIL)-5 AS LONGEMAIL
+FROM WORK.COMEXTE t1;
+QUIT;
+
+/* GENERO RESTO UTILIZANDO EL CAMPO LONGEMAIL COMO PARAMETRO
+DENTRO DEL SUBSTR */
+PROC SQL;
+CREATE TABLE WORK.COMEXTE AS
+SELECT DISTINCT t1.*,
+SUBSTR(t1.EMAIL,t1.LONGEMAIL,6) AS RESTO
+FROM WORK.COMEXTE t1;
+QUIT;
+
+CALCULA EDAD CON UN CAMPO FECHANACIMIENTO CADENA
+
+YEAR(DATE())-(INPUT(SUBSTR(t1.FECHANACIMIENTO,1,4.),4.)) AS EDAD,
+
+PONE EN MAYUSCULAS Y CONCATENA CAMBIANDO EL _ POR UN BLANCO
+
+UPCASE(TRANWRD((CATS(t1.Calle,'_',t1.Nro)),'_',' ')) AS N_DOM_CONCATENADO
+
+CAMBIO Ã POR Ñ Y ELIMINO ± CUANDO LA LETRA Ñ VIENE REPRESENTADA POR Ã±
+
+COMPRESS(TRANWRD(t1.EMAIL,'Ã','Ñ'),'±') AS EMAIL,
+
+ACTUALIZA EL CAMPO MEDIANTE UNA CONDICION
+
+PROC SQL;
+UPDATE WORK.ANALISIS_2
+SET CERO=99
+WHERE CERO=0;
+QUIT;
+
+GENERA MACROVARIABLES MULTIPLES
+
+DATA TABLA_PARAMETROS;
+LENGTH MV $16;
+INPUT MV VALOR;
+DATALINES ;
+parámetro1 300
+VAR2 200
+var3 800
+;
+
+DATA _NULL_;
+SET TABLA_PARAMETROS;
+CALL SYMPUT("MV_"||left(trim(_n_)),VALOR);
+RUN;
+
+%put &MV_1.;
+%put &MV_2.;
+%put &MV_3.;
+
