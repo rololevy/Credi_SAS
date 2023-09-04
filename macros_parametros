@@ -1,9 +1,5 @@
 Declara Parámetro a partir de un resultado:
 
-
-
-LIBNAME MAD ORACLE  PATH=OMTP1N  SCHEMA=DMP  USER=DMP  PASSWORD="{SAS002}BA7B9D06115FA7C45AF3E4814A50A4E4" ;
-
 proc sql OUTOBS=1;
     select distinct MSR_PRD_ID into :DIA_SALDO_PP trimmed
     from MAD.MA_SC_SALDO
@@ -136,12 +132,8 @@ run;
 %Crear_Tablas;
 
 
---------------------------
+---------------------
 
-Asigna Librería
-
-
-LIBNAME MAD ORACLE  PATH=OMTP1N  SCHEMA=DMP  USER=DMP  PASSWORD="{SAS002}BA7B9D06115FA7C45AF3E4814A50A4E4" ;
 
 
 
